@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🎬 Zohlore Studios | High-Retention Video Systems</title>
+    
+    <meta property="og:title" content="Zohlore Studios | High-Retention Video Systems">
+    <meta property="og:url" content="https://zohlorelabs.netlify.app">
+    <meta property="og:image" content="https://zohlorelabs.netlify.app/og-image.jpg">
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
@@ -71,7 +76,7 @@
             box-shadow: 0 0 30px var(--accent-pink);
         }
 
-        /* --- NEW VIDEO GRID SYSTEM --- */
+        /* --- VIDEO GRID --- */
         .video-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -81,7 +86,7 @@
 
         .vertical-embed {
             position: relative;
-            padding-bottom: 177.77%; /* Perfect 9:16 Ratio */
+            padding-bottom: 177.77%; /* 9:16 Ratio */
             height: 0;
             overflow: hidden;
             border-radius: 1.5rem;
@@ -120,7 +125,7 @@
         <div class="text-xl font-extrabold tracking-tighter uppercase">ZOHLORE <span class="text-[#FF3366]">STUDIOS</span></div>
         <div class="flex items-center space-x-6">
             <a href="index.html" class="text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-white transition">← Tech Portfolio</a>
-            <a href="#contact" class="btn-primary text-xs font-bold uppercase px-6 py-2 rounded-full">Book a Call</a>
+            <a href="mailto:ataylo243@gmail.com" class="btn-primary text-xs font-bold uppercase px-6 py-2 rounded-full">Book a Call</a>
         </div>
     </nav>
 
@@ -132,7 +137,7 @@
                 </h1>
                 <p class="text-lg md:text-xl text-gray-300 mb-8">Doubling creator output with AI storytelling.</p>
                 <div class="flex flex-wrap gap-4">
-                    <a href="#contact" class="btn-primary px-8 py-4 rounded-xl font-bold">Start a Project</a>
+                    <a href="mailto:ataylo243@gmail.com" class="btn-primary px-8 py-4 rounded-xl font-bold">Start a Project</a>
                     <a href="#showreel" class="border-2 border-white/20 hover:border-white px-8 py-4 rounded-xl font-bold transition">Watch Showreel</a>
                 </div>
             </div>
@@ -146,8 +151,9 @@
         </div>
         
         <div class="video-grid">
+            <!-- REPLACED: First video now shows the new YouTube Short -->
             <div class="vertical-embed">
-                <iframe src="https://www.youtube.com/embed/418Yr25QDIA?modestbranding=1&rel=0&controls=1" title="Star Wars Edit" frameborder="0" allowfullscreen></iframe>
+                <iframe src="https://www.youtube.com/embed/xkIO2UYx2i0?modestbranding=1&rel=0&controls=1" title="YouTube Short" frameborder="0" allowfullscreen></iframe>
             </div>
             
             <div class="vertical-embed">
@@ -163,7 +169,7 @@
     <footer id="contact" class="py-32 text-center border-t border-white/5">
         <h2 class="text-4xl font-extrabold mb-12">Ready to Scale?</h2>
         <div class="flex flex-wrap justify-center gap-6">
-            <a href="mailto:your-email@example.com" class="btn-primary px-12 py-5 rounded-2xl font-bold text-xl">Email Zohlore</a>
+            <a href="mailto:ataylo243@gmail.com" class="btn-primary px-12 py-5 rounded-2xl font-bold text-xl">Email Zohlore</a>
             <a href="#" class="border-2 border-white/20 hover:border-white px-12 py-5 rounded-2xl font-bold text-xl transition">Connect on LinkedIn</a>
         </div>
         <p class="mt-20 text-[10px] text-gray-700 uppercase tracking-widest">&copy; 2026 Zohlore Studios. All Rights Reserved.</p>
