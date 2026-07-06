@@ -12,28 +12,47 @@ from models import CompanyInfo, EnrichmentResult
 from cache import cache
 from logger import logger
 
-# We'll set defaults here, but they'll be overridden by env vars
 load_dotenv()  # for local development
+
+# ------------------------------------------------------------------
+# Helper to get API keys (works on both Streamlit Cloud and local)
+# ------------------------------------------------------------------
+def get_api_key(key_name: str) -> str:
+    """Try st.secrets first (Streamlit Cloud), then os.environ (local)."""
+    try:
+        import streamlit as st
+        if hasattr(st, 'secrets') and key_name in st.secrets:
+            return st.secrets[key_name]
+    except ImportError:
+        pass
+    return os.getenv(key_name, "")
+
+# ------------------------------------------------------------------
+# Constants (to replace config.py usage)
+# ------------------------------------------------------------------
+MAX_SEARCH_RESULTS = 5
+MAX_CONTENT_CHARS = 4000
+DELAY_BETWEEN_REQUESTS = 1.0
 
 class CompanyEnricher:
     def __init__(self):
         logger.info("Initializing Company Enricher...")
         
-        # Read keys from environment (set by dashboard.py on Streamlit Cloud)
-        self.openai_api_key = os.getenv("OPENAI_API_KEY")
-        self.tavily_api_key = os.getenv("TAVILY_API_KEY")
+        # Read API keys using the helper
+        self.openai_api_key = get_api_key("OPENAI_API_KEY")
+        self.tavily_api_key = get_api_key("TAVILY_API_KEY")
         
         if not self.openai_api_key or not self.tavily_api_key:
-            raise ValueError("Missing API keys in environment variables")
+            raise ValueError("Missing API keys. Please set OPENAI_API_KEY and TAVILY_API_KEY in Streamlit secrets or .env")
         
-        # Now use these keys to initialize the LLM and Tavily client
         self.llm = ChatOpenAI(
-            model="gpt-4o-mini",  # you can set this as a constant or env var
+            model="gpt-4o-mini",
             temperature=0.2,
             api_key=self.openai_api_key
         )
         self.tavily = TavilyClient(api_key=self.tavily_api_key)
-        # ... rest of your __init__
+        self.agent = self._build_agent()
+        logger.info("Enricher initialized successfully")
     
     def _search_web(self, query: str) -> str:
         """Search the web for information on a given topic."""
@@ -42,7 +61,7 @@ class CompanyEnricher:
             response = self.tavily.search(
                 query=query,
                 search_depth="advanced",
-                max_results=config.MAX_SEARCH_RESULTS
+                max_results=MAX_SEARCH_RESULTS
             )
             results = response.get('results', [])
             
@@ -50,8 +69,8 @@ class CompanyEnricher:
                 return "No results found."
             
             formatted = []
-            for r in results[:config.MAX_SEARCH_RESULTS]:
-                content = r.get('content', '')[:config.MAX_CONTENT_CHARS]
+            for r in results[:MAX_SEARCH_RESULTS]:
+                content = r.get('content', '')[:MAX_CONTENT_CHARS]
                 formatted.append(
                     f"Title: {r.get('title', 'No title')}\n"
                     f"Content: {content}\n"
@@ -267,7 +286,7 @@ Return ONLY valid JSON, no other text."""
             results.append(result)
             
             if i < total:
-                time.sleep(config.DELAY_BETWEEN_REQUESTS)
+                time.sleep(DELAY_BETWEEN_REQUESTS)
         
         cache_hits = sum(1 for r in results if r.from_cache)
         logger.info(f"✅ Batch complete. Cache hits: {cache_hits}/{total}")
