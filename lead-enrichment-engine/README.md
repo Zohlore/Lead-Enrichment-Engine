@@ -13,7 +13,7 @@
 
 ##  What This Does
 
-This tool enriches company data from a CSV or single input, extracts key information (industry, leadership, recent news, products, funding), and generates personalized outreach emails — all while **saving API costs** with a built‑in SQLite cache.
+This tool enriches company data from a CSV or single input, extracts key information (industry, leadership, recent news, products, funding), and generates personalized outreach emails, all while **saving API costs** with a built‑in SQLite cache.
 
 | Feature | Description |
 |---------|-------------|
