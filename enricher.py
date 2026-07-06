@@ -11,32 +11,29 @@ from tavily import TavilyClient
 from models import CompanyInfo, EnrichmentResult
 from cache import cache
 from logger import logger
-from config import config
 
-# Load environment variables
-load_dotenv()
+# We'll set defaults here, but they'll be overridden by env vars
+load_dotenv()  # for local development
 
 class CompanyEnricher:
-    """Enrich company data using web search and LLM."""
-    
     def __init__(self):
         logger.info("Initializing Company Enricher...")
         
-        self.openai_api_key = config.OPENAI_API_KEY
-        self.tavily_api_key = config.TAVILY_API_KEY
+        # Read keys from environment (set by dashboard.py on Streamlit Cloud)
+        self.openai_api_key = os.getenv("OPENAI_API_KEY")
+        self.tavily_api_key = os.getenv("TAVILY_API_KEY")
         
         if not self.openai_api_key or not self.tavily_api_key:
-            raise ValueError("Missing API keys in .env")
+            raise ValueError("Missing API keys in environment variables")
         
+        # Now use these keys to initialize the LLM and Tavily client
         self.llm = ChatOpenAI(
-            model=config.LLM_MODEL,
-            temperature=config.TEMPERATURE,
+            model="gpt-4o-mini",  # you can set this as a constant or env var
+            temperature=0.2,
             api_key=self.openai_api_key
         )
-        
         self.tavily = TavilyClient(api_key=self.tavily_api_key)
-        self.agent = self._build_agent()
-        logger.info("Enricher initialized successfully")
+        # ... rest of your __init__
     
     def _search_web(self, query: str) -> str:
         """Search the web for information on a given topic."""
