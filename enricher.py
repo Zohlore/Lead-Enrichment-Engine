@@ -1,7 +1,9 @@
-# Core enrichment logic
-import time
+import os
+import json
 import re
-from typing import Dict, Any, Optional, List
+import time
+from typing import List, Optional
+from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
 from tavily import TavilyClient
@@ -10,6 +12,9 @@ from models import CompanyInfo, EnrichmentResult
 from cache import cache
 from logger import logger
 from config import config
+
+# Load environment variables
+load_dotenv()
 
 class CompanyEnricher:
     """Enrich company data using web search and LLM."""
@@ -34,7 +39,7 @@ class CompanyEnricher:
         logger.info("Enricher initialized successfully")
     
     def _search_web(self, query: str) -> str:
-        """Search web for company information."""
+        """Search the web for information on a given topic."""
         logger.info(f"🔍 Searching: {query}")
         try:
             response = self.tavily.search(
@@ -65,7 +70,9 @@ class CompanyEnricher:
             return f"Error: {e}"
     
     def _build_agent(self):
-        """Build the LangGraph agent."""
+        """Build the agent using LangGraph's create_react_agent."""
+        logger.debug("Building agent with LangGraph...")
+        
         def web_search(query: str) -> str:
             return self._search_web(query)
         
@@ -90,7 +97,7 @@ class CompanyEnricher:
         ]
         
         system_prompt = """You are a professional business research assistant.
-        
+
 Your goal is to enrich company data with accurate information from the web.
 
 For each company, you MUST search for:
@@ -100,21 +107,24 @@ For each company, you MUST search for:
 4. Key products or services
 5. Recent funding rounds
 
-Format your response as a JSON object with:
-- company_name
-- website
-- industry
-- employee_count
-- founded_year
-- ceo
-- cto
-- head_of_sales
-- recent_news (array of strings)
-- key_products (array of strings)
-- recent_funding
-- source_urls (array of strings)
+**IMPORTANT: You MUST output ONLY a valid JSON object. Do not include any extra text, explanations, or markdown. The JSON must have these exact fields:**
 
-Be specific and accurate. Use search results."""
+{
+    "company_name": "...",
+    "website": "...",
+    "industry": "...",
+    "employee_count": "...",
+    "founded_year": "...",
+    "ceo": "...",
+    "cto": "...",
+    "head_of_sales": "...",
+    "recent_news": ["...", "..."],
+    "key_products": ["...", "..."],
+    "recent_funding": "...",
+    "source_urls": ["...", "..."]
+}
+
+Use the search results to fill in the data. If a field is unknown, use null."""
         
         agent = create_react_agent(
             model=self.llm,
@@ -122,21 +132,18 @@ Be specific and accurate. Use search results."""
             prompt=system_prompt,
             debug=False
         )
-        
         return agent
     
     def enrich_company(self, company_name: str) -> EnrichmentResult:
         """Enrich a single company."""
         logger.info(f"Enriching: {company_name}")
         start_time = time.time()
-        from_cache = False
         
         # Check cache FIRST (cost control)
         cached = cache.get(company_name)
         if cached:
-            from_cache = True
-            company_info = CompanyInfo(**cached)
             logger.info(f"✅ Cache hit for {company_name}")
+            company_info = CompanyInfo(**cached)
             return EnrichmentResult(
                 company=company_info,
                 from_cache=True,
@@ -145,77 +152,110 @@ Be specific and accurate. Use search results."""
             )
         
         try:
-            # Run the agent
-            messages = [
-                {
-                    "role": "user",
-                    "content": f"""Research this company thoroughly: {company_name}
-
-Search for:
-1. Company overview (industry, size, founded)
-2. Leadership team (CEO, CTO, Head of Sales)
-3. Recent news and announcements
-4. Key products and services
-5. Recent funding rounds
-
-Use web_search for EACH aspect. Return a structured JSON output."""
-                }
-            ]
+            # Perform multiple searches
+            search_results = {}
+            aspects = ["industry", "leadership", "news", "products", "funding"]
             
-            result = self.agent.invoke({"messages": messages})
-            output = result['messages'][-1].content
+            for aspect in aspects:
+                search_results[aspect] = self._search_company(company_name, aspect)
+                time.sleep(0.5)  # Rate limiting
             
-            # Extract JSON from output
-            import json
-            import re
+            # Build context
+            context = f"Company: {company_name}\n\n"
+            context += f"INDUSTRY: {search_results.get('industry', '')}\n\n"
+            context += f"LEADERSHIP: {search_results.get('leadership', '')}\n\n"
+            context += f"RECENT NEWS: {search_results.get('news', '')}\n\n"
+            context += f"PRODUCTS: {search_results.get('products', '')}\n\n"
+            context += f"FUNDING: {search_results.get('funding', '')}\n\n"
+            
+            # Use OpenAI to extract structured data
+            system_prompt = """Extract company information from the following text and return as JSON.
+
+The JSON should have these fields:
+- company_name: string
+- website: string or null
+- industry: string or null
+- employee_count: string or null
+- founded_year: string or null
+- ceo: string or null
+- cto: string or null
+- head_of_sales: string or null
+- recent_news: array of strings (max 5)
+- key_products: array of strings (max 5)
+- recent_funding: string or null
+- source_urls: array of strings (max 5)
+
+Return ONLY valid JSON, no other text."""
+            
+            response = self.llm.invoke([
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Company: {company_name}\n\nSearch Results:\n{context}"}
+            ])
+            
+            output = response.content
+            
+            # Try multiple ways to extract JSON
+            json_str = None
             json_match = re.search(r'\{.*\}', output, re.DOTALL)
-            
             if json_match:
                 json_str = json_match.group()
-                company_dict = json.loads(json_str)
-                company_info = CompanyInfo(**company_dict)
             else:
-                # Fallback: basic info from output
+                # Try to find JSON between code fences
+                code_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', output, re.DOTALL)
+                if code_match:
+                    json_str = code_match.group(1)
+            
+            if json_str:
+                try:
+                    company_dict = json.loads(json_str)
+                    # Ensure company_name is set
+                    company_dict['company_name'] = company_name
+                    company_info = CompanyInfo(**company_dict)
+                except json.JSONDecodeError as e:
+                    logger.error(f"JSON decode error: {e}")
+                    company_info = CompanyInfo(
+                        company_name=company_name,
+                        recent_news=["Enrichment completed"],
+                        source_urls=[]
+                    )
+            else:
+                logger.warning(f"Could not parse JSON for {company_name}")
                 company_info = CompanyInfo(
                     company_name=company_name,
                     recent_news=["Enrichment completed"],
-                    source_urls=["Web search"]
+                    source_urls=[]
                 )
-                logger.warning(f"Could not parse JSON for {company_name}")
             
             # Cache the result
             cache.set(company_name, company_info.dict())
             
             processing_time = (time.time() - start_time) * 1000
             
-            # Cost estimate (rough)
-            cost_estimate = 0.002  # ~$0.002 per company
-            
-            logger.info(f"✅ Enriched {company_name} in {processing_time:.0f}ms")
-            
             return EnrichmentResult(
                 company=company_info,
                 from_cache=False,
                 processing_time_ms=processing_time,
-                cost_estimate_usd=cost_estimate
+                cost_estimate_usd=0.005
             )
             
         except Exception as e:
             logger.error(f"Failed to enrich {company_name}: {e}")
-            
-            # Return basic info as fallback
             company_info = CompanyInfo(
                 company_name=company_name,
                 recent_news=[f"Error during enrichment"],
                 source_urls=[]
             )
-            
             return EnrichmentResult(
                 company=company_info,
                 from_cache=False,
                 processing_time_ms=(time.time() - start_time) * 1000,
                 cost_estimate_usd=0
             )
+    
+    def _search_company(self, company_name: str, aspect: str) -> str:
+        """Search for a specific aspect of a company."""
+        query = f"{company_name} {aspect}"
+        return self._search_web(query)
     
     def enrich_batch(self, company_names: List[str]) -> List[EnrichmentResult]:
         """Enrich a batch of companies."""
@@ -229,11 +269,9 @@ Use web_search for EACH aspect. Return a structured JSON output."""
             result = self.enrich_company(name)
             results.append(result)
             
-            # Rate limiting delay
             if i < total:
                 time.sleep(config.DELAY_BETWEEN_REQUESTS)
         
-        # Count cache hits
         cache_hits = sum(1 for r in results if r.from_cache)
         logger.info(f"✅ Batch complete. Cache hits: {cache_hits}/{total}")
         
