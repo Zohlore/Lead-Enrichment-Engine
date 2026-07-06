@@ -1,5 +1,14 @@
 import streamlit as st
-import pandas as pd
+import os
+
+# Load secrets into environment variables (for Streamlit Cloud)
+if "OPENAI_API_KEY" in st.secrets:
+    os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+if "TAVILY_API_KEY" in st.secrets:
+    os.environ["TAVILY_API_KEY"] = st.secrets["TAVILY_API_KEY"]
+
+# Now import the enricher
+from enricher import enricher import pandas as pd
 import time
 from enricher import enricher
 from email_generator import email_generator
